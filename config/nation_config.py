@@ -7,11 +7,15 @@ AFRICAN = "African"
 OTHER = "Other"
 
 # Branching Map
+# Indian: Emotion, Age, Dress Color
+# United States: Emotion, Age
+# African: Emotion, Dress Color
+# Other: Emotion only
 BRANCHES = {
     INDIAN: ["Emotion", "Age", "Dress Color"],
-    US: ["Emotion", "Age", "Dress Color"],
-    AFRICAN: ["Emotion", "Age", "Dress Color"],
-    OTHER: ["Emotion", "Age", "Dress Color"]
+    US: ["Emotion", "Age"],
+    AFRICAN: ["Emotion", "Dress Color"],
+    OTHER: ["Emotion"]
 }
 
 # Color Detection

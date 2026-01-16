@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, filedialog
 import cv2
 from PIL import Image, ImageTk
 import sys
@@ -24,7 +24,7 @@ class NationalityGUI:
         self.main_frame = ttk.Frame(root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Left Side: Video
+        # Left Side: Video/Image Preview
         self.video_frame = ttk.LabelFrame(self.main_frame, text="Input Feed")
         self.video_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
@@ -49,6 +49,9 @@ class NationalityGUI:
         
         self.start_btn = ttk.Button(self.btn_frame, text="Run System", command=self.start_camera)
         self.start_btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        
+        self.upload_btn = ttk.Button(self.btn_frame, text="Upload Image", command=self.upload_image)
+        self.upload_btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
         
         self.quit_btn = ttk.Button(self.btn_frame, text="Close", command=self.on_close)
         self.quit_btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
@@ -149,6 +152,98 @@ class NationalityGUI:
                 self.video_label.configure(image=imgtk)
             
             self.root.after(15, self.update_frame)
+
+    def upload_image(self):
+        """Handle image upload and analysis."""
+        # Stop camera if running
+        if self.running:
+            self.running = False
+            if self.cap:
+                self.cap.release()
+                self.cap = None
+            self.log("Camera stopped for image upload.")
+        
+        # Open file dialog
+        filetypes = [
+            ("Image files", "*.jpg *.jpeg *.png *.bmp *.gif"),
+            ("All files", "*.*")
+        ]
+        filepath = filedialog.askopenfilename(
+            title="Select an Image",
+            filetypes=filetypes
+        )
+        
+        if not filepath:
+            self.log("No image selected.")
+            return
+        
+        self.log(f"Processing: {os.path.basename(filepath)}")
+        
+        # Load image
+        frame = cv2.imread(filepath)
+        if frame is None:
+            self.log("Error: Could not read image file.")
+            return
+        
+        # Process with engine
+        try:
+            if self.engine:
+                results = self.engine.analyze_frame(frame)
+                
+                for res in results:
+                    x, y, w, h = res['bbox']
+                    nat = res['nationality']
+                    branch = res['branch']
+                    attrs = res['attributes']
+                    
+                    # Box color based on branch
+                    if branch == "Indian":
+                        color = (0, 165, 255)  # Orange
+                    elif branch == "United States":
+                        color = (255, 100, 100)  # Light Blue
+                    elif branch == "African":
+                        color = (0, 200, 200)  # Yellow
+                    else:
+                        color = (0, 255, 0)  # Green
+                    
+                    # Draw bounding box
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), color, 3)
+                    
+                    # Nationality label with background
+                    label = nat
+                    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+                    cv2.rectangle(frame, (x, y - th - 10), (x + tw + 10, y), color, -1)
+                    cv2.putText(frame, label, (x + 5, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+                    
+                    # Attributes panel (right side of face)
+                    panel_x = x + w + 10
+                    panel_y = y
+                    
+                    for k, v in attrs.items():
+                        text = f"{k}: {v}"
+                        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+                        cv2.rectangle(frame, (panel_x - 2, panel_y), (panel_x + tw + 5, panel_y + th + 8), (50, 50, 50), -1)
+                        cv2.putText(frame, text, (panel_x, panel_y + th + 3), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                        panel_y += th + 12
+                    
+                    # Log results
+                    self.log(f"  Nationality: {nat} ({branch})")
+                    for k, v in attrs.items():
+                        self.log(f"    {k}: {v}")
+                
+                if not results:
+                    self.log("No faces detected in image.")
+            else:
+                self.log("Engine not loaded yet.")
+        except Exception as e:
+            self.log(f"Processing error: {str(e)}")
+        
+        # Display processed image
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(frame)
+        imgtk = ImageTk.PhotoImage(image=img)
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
 
     def on_close(self):
         self.running = False
